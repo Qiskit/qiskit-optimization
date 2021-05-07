@@ -219,7 +219,6 @@ class GroverOptimizer(OptimizationAlgorithm):
             # Get oracle O and the state preparation operator A for the current threshold.
             problem_.objective.constant = orig_constant - threshold
             a_operator = self._get_a_operator(qr_key_value, problem_)
-
             # Iterate until we measure a negative.
             loops_with_no_improvement = 0
             while not improvement_found:
@@ -256,20 +255,21 @@ class GroverOptimizer(OptimizationAlgorithm):
                     threshold = optimum_value
 
                     # trace out work qubits and store samples
+                    # pylint: disable=invalid-unary-operand-type
                     if self._quantum_instance.is_statevector:  # type: ignore
                         indices = list(range(n_key, len(outcome)))
                         rho = partial_trace(self._circuit_results, indices)
                         self._circuit_results = np.diag(rho.data) ** 0.5
                     else:
                         self._circuit_results = {
-                            i[0:n_key]: v for i, v in self._circuit_results.items()
+                            i[-n_key:]: v for i, v in self._circuit_results.items()  # type: ignore
                         }
-
                     raw_samples = self._eigenvector_to_solutions(
                         self._circuit_results, problem_init
                     )
                     raw_samples.sort(key=lambda x: problem_.objective.sense.value * x.fval)
                     samples = self._interpret_samples(problem, raw_samples, self._converters)
+
                 else:
                     # Using Durr and Hoyer method, increase m.
                     m = int(np.ceil(min(m * 8 / 7, 2 ** (n_key / 2))))
@@ -347,7 +347,7 @@ class GroverOptimizer(OptimizationAlgorithm):
             state = result.get_counts(qc)
             shots = self.quantum_instance.run_config.shots
             hist = {key[::-1]: val / shots for key, val in state.items() if val > 0}
-            self._circuit_results = {b[::-1]: np.sqrt(v / shots) for (b, v) in state.items()}
+            self._circuit_results = {b: (v / shots) ** 0.5 for (b, v) in state.items()}
         return hist
 
     @staticmethod

@@ -22,10 +22,8 @@ import numpy as np
 
 from qiskit.opflow import StateFn, DictStateFn
 from ..exceptions import QiskitOptimizationError
-from ..converters.quadratic_program_to_qubo import (
-    QuadraticProgramToQubo,
-    QuadraticProgramConverter,
-)
+from ..converters.quadratic_program_to_qubo import QuadraticProgramToQubo, QuadraticProgramConverter
+from ..converters import MaximizeToMinimize
 from ..problems.quadratic_program import QuadraticProgram, Variable
 
 
@@ -369,7 +367,8 @@ class OptimizationAlgorithm(ABC):
         converters: Optional[Union[QuadraticProgramConverter, List[QuadraticProgramConverter]]],
         penalty: Optional[float] = None,
     ) -> List[QuadraticProgramConverter]:
-        """Prepare a list of converters from the input.
+        """Prepare a list of converters from the input. The returned list always contains
+        an instance of QuadraticProgramConverter or MaximizeToMinimize.
 
         Args:
             converters: The converters to use for converting a problem into a different form.
@@ -392,7 +391,10 @@ class OptimizationAlgorithm(ABC):
         elif isinstance(converters, list) and all(
             isinstance(converter, QuadraticProgramConverter) for converter in converters
         ):
-            return converters
+            if any(isinstance(converter, MaximizeToMinimize) for converter in converters):
+                return converters
+            else:
+                return converters + [MaximizeToMinimize()]
         else:
             raise TypeError("`converters` must all be of the QuadraticProgramConverter type")
 

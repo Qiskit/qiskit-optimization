@@ -23,6 +23,7 @@ from ..exceptions import QiskitOptimizationError
 from ..problems import Variable
 from ..problems.constraint import Constraint
 from ..problems.quadratic_program import QuadraticProgram
+from ..converters import MaximizeToMinimize
 
 logger = logging.getLogger(__name__)
 
@@ -183,13 +184,17 @@ class SlsqpOptimizer(MultiStartOptimizer):
             QiskitOptimizationError: If the problem is incompatible with the optimizer.
         """
         self._verify_compatibility(problem)
+        # we deal with minimization in the optimizer, so turn the problem to minimization
+        max2min = MaximizeToMinimize()
+        original_problem = problem
+        problem = max2min.convert(problem)
 
         # construct quadratic objective function
         def _objective(x):
-            return problem.objective.sense.value * problem.objective.evaluate(x)
+            return problem.objective.evaluate(x)
 
         def _objective_gradient(x):
-            return problem.objective.sense.value * problem.objective.evaluate_gradient(x)
+            return problem.objective.evaluate_gradient(x)
 
         # initialize constraints and bounds
         slsqp_bounds = []
@@ -241,6 +246,10 @@ class SlsqpOptimizer(MultiStartOptimizer):
 
         # actual optimization goes here
         result = self.multi_start_solve(_minimize, problem)
+        # eventually convert back minimization to maximization
+        result = self._interpret(
+            x=result.x, problem=original_problem, converters=max2min, raw_results=result.raw_results
+        )
 
         if self._full_output:
             return SlsqpOptimizationResult(
